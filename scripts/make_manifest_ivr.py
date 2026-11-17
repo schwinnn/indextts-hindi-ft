@@ -15,8 +15,24 @@ import argparse, glob, io, json, os, re, unicodedata
 from pathlib import Path
 from collections import defaultdict
 
+import re as _re
+
 import pandas as pd
 import numpy as np
+
+
+def _parse_float(val) -> float | None:
+    """IndicVoices-R 的 cer/snr 列值有时是 'tensor(0.0248)' 格式，解析成 float。"""
+    if val is None:
+        return None
+    s = str(val).strip()
+    m = _re.match(r"tensor\(([^)]+)\)", s)
+    if m:
+        s = m.group(1)
+    try:
+        return float(s)
+    except ValueError:
+        return None
 
 try:
     import soundfile as sf
@@ -59,17 +75,27 @@ def decode_audio_duration(audio_val) -> float:
     try:
         if isinstance(audio_val, dict):
             if "array" in audio_val:
-                sr = audio_val.get("sampling_rate", 1)
-                return len(audio_val["array"]) / max(sr, 1)
+                sr  = audio_val.get("sampling_rate", 1)
+                arr = np.asarray(audio_val["array"])
+                # 立体声：行数是采样点数
+                n   = arr.shape[0] if arr.ndim >= 1 else len(arr)
+                return n / max(sr, 1)
             if "bytes" in audio_val:
                 audio, sr = sf.read(io.BytesIO(audio_val["bytes"]))
-                return len(audio) / sr
+                return audio.shape[0] / sr
         elif isinstance(audio_val, bytes):
             audio, sr = sf.read(io.BytesIO(audio_val))
-            return len(audio) / sr
+            return audio.shape[0] / sr
     except Exception:
         pass
     return 0.0
+
+
+def _to_mono(arr: np.ndarray) -> np.ndarray:
+    """立体声 → 单声道（平均两声道）。"""
+    if arr.ndim == 2:
+        arr = arr.mean(axis=1)
+    return arr
 
 
 def save_wav(audio_val, path: Path) -> bool:
@@ -81,16 +107,16 @@ def save_wav(audio_val, path: Path) -> bool:
         if isinstance(audio_val, dict):
             if "array" in audio_val:
                 sr  = audio_val.get("sampling_rate", 48000)
-                arr = np.asarray(audio_val["array"])
+                arr = _to_mono(np.asarray(audio_val["array"]))
                 sf2.write(str(path), arr, sr)
                 return True
             if "bytes" in audio_val:
                 audio, sr = sf2.read(io.BytesIO(audio_val["bytes"]))
-                sf2.write(str(path), audio, sr)
+                sf2.write(str(path), _to_mono(audio), sr)
                 return True
         elif isinstance(audio_val, bytes):
             audio, sr = sf2.read(io.BytesIO(audio_val))
-            sf2.write(str(path), audio, sr)
+            sf2.write(str(path), _to_mono(audio), sr)
             return True
     except Exception:
         pass
@@ -198,9 +224,16 @@ def main():
                     "duration": round(dur, 3),
                 }
                 # 把 gender/snr/cer 带上，方便后续过滤
-                for extra in ("gender", "snr", "cer", "speaking_rate", "age_group", "area"):
+                # cer/snr 可能是 'tensor(0.025)' 格式，统一解析成 float
+                for extra in ("gender", "age_group", "area", "scenario"):
                     if extra in row.index and pd.notna(row[extra]):
-                        record[extra] = row[extra]
+                        record[extra] = str(row[extra])
+                for fextra in ("snr", "cer", "speaking_rate",
+                               "utterance_pitch_mean", "utterance_pitch_std"):
+                    if fextra in row.index:
+                        v = _parse_float(row[fextra])
+                        if v is not None:
+                            record[fextra] = round(v, 4)
 
                 fout.write(json.dumps(record, ensure_ascii=False) + "\n")
                 stats["kept"] += 1
