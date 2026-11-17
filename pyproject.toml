@@ -1,0 +1,52 @@
+[project]
+name = "indextts-hindi-ft"
+version = "0.1.0"
+description = "IndexTTS-2.5 Hindi language fine-tune toolkit"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pandas>=2.0",
+    "pyarrow>=14.0",
+    "soundfile>=0.12",
+    "numpy>=1.24",
+    "num2words>=0.5.13",
+    "indic-transliteration>=2.3",
+    "omegaconf>=2.3",
+    "tensorboard>=2.15",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+train = [
+    "torch>=2.2",
+    "torchaudio>=2.2",
+    "tiktoken>=0.6",
+    "transformers>=4.40",
+    "peft>=0.10",
+]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["hindi", "scripts"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.uv]
+# 训练机器用 index-tts 的 venv，这里只管这个包自己的依赖
+# 在 index-tts/ 目录下安装：
+#   uv pip install -r ../indextts-hindi-ft/requirements.txt
+# 或直接 editable 安装：
+#   uv pip install -e ../indextts-hindi-ft
+dev-dependencies = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
