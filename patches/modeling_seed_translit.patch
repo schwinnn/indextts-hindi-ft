@@ -1,0 +1,37 @@
+--- itts25ft/modeling.py
++++ itts25ft/modeling.py
+@@ -213,9 +213,34 @@
+ 
+ #: Letters the base model never learned, mapped to Latin spellings of a close
+ #: sound.  Only used to find *trained* pieces to seed an untrained row from.
++#: The Devanagari entries below were added for the Hindi finetune so that
++#: whole-word tokens like " देश" respell to " desh" and tiktoken can split them
++#: into trained Latin sub-word pieces.  Source of truth:
++#: indextts-hindi-ft/hindi/devanagari_translit.py — keep these two in sync.
+ _SEED_TRANSLIT = str.maketrans({
++    # Turkish (upstream).
+     "ç": "ch", "ş": "sh", "ğ": "", "ı": "i", "ö": "o", "ü": "u",
+     "â": "a", "î": "i", "û": "u",
++    # Hindi / Devanagari consonants.
++    "क": "k", "ख": "kh", "ग": "g", "घ": "gh", "ङ": "ng",
++    "च": "ch", "छ": "chh", "ज": "j", "झ": "jh", "ञ": "ny",
++    "ट": "t", "ठ": "th", "ड": "d", "ढ": "dh", "ण": "n",
++    "त": "t", "थ": "th", "द": "d", "ध": "dh", "न": "n",
++    "प": "p", "फ": "ph", "ब": "b", "भ": "bh", "म": "m",
++    "य": "y", "र": "r", "ल": "l", "व": "v",
++    "श": "sh", "ष": "sh", "स": "s", "ह": "h",
++    "क़": "q", "ख़": "kh", "ग़": "g", "ज़": "z",
++    "ड़": "r", "ढ़": "rh", "फ़": "f", "य़": "y",
++    # Independent vowels.
++    "अ": "a", "आ": "aa", "इ": "i", "ई": "ee",
++    "उ": "u", "ऊ": "oo", "ए": "e", "ऐ": "ai",
++    "ओ": "o", "औ": "au", "ऋ": "ri",
++    # Matras (dependent vowel signs).
++    "ा": "aa", "ि": "i", "ी": "ee", "ु": "u", "ू": "oo",
++    "े": "e", "ै": "ai", "ो": "o", "ौ": "au", "ृ": "ri",
++    "ं": "n", "ः": "h", "ँ": "n",
++    # Halant / avagraha / danda — suppress inherent vowel or punctuation.
++    "्": "", "ऽ": "", "।": ".", "॥": ".",
+ })
+ 
+ 

@@ -1,0 +1,78 @@
+# IndexTTS-2.5 Hindi finetune config
+# 用法：python scripts/train.py --config ../indextts-hindi-ft/configs/hindi.yaml \
+#           --normalizer module:hindi.normalizer:normalize_hindi --case none
+#
+# 两阶段训练：
+#   阶段 1 (phase1)：Chaashini + IndicVoices-R，大量数据，学语言覆盖
+#   阶段 2 (phase2)：录音棚数据（kalita11 + somu9），提升发音清晰度
+# 下面是阶段 2 的配置，阶段 1 只需把 train_manifests 换成 chaashini + ivr。
+
+# --- 路径 -------------------------------------------------------
+output_dir: runs/hi_lora_phase2
+
+train_manifests:
+  - data/hi/pairs_kalita.jsonl::hi
+  - data/hi/pairs_somu9.jsonl::hi
+  - data/hi/pairs_ivr.jsonl::hi@0.3   # 多说话人 replay，保持克隆泛化
+  # 防止旧语言退化（建议保留，尤其做 merged 导出时）
+  # - data/replay/en_pairs.jsonl::en@0.1
+  # - data/replay/zh_pairs.jsonl::zh@0.1
+
+val_manifests:
+  - data/hi/pairs_ivr_val.jsonl::hi   # 整人留出，人工转写
+  # - data/replay/en_pairs_val.jsonl::en
+
+# --- 语言 -------------------------------------------------------
+lang: hi
+lang_init_from: es     # 从西班牙语行初始化（同为非 CJK 拉丁系，训练最充分）
+lang_init_noise: 0.0
+train_all_lang_rows: false
+
+# --- 可训练参数 -------------------------------------------------
+trainable_mode: lora
+lora_rank: 32          # 欠拟合再升到 64（同时把 lora_alpha 升到 128）
+lora_alpha: 64.0
+lora_dropout: 0.0
+lora_last_n_layers: 0  # 适配所有 24 层
+train_text_embedding: false
+preserve_emotion: true  # 冻结情感分支，保留跨语言克隆能力
+
+# 训练基座里未见过的天城文 token embedding 行（核心参数）
+# 土耳其语经验：未训练行占 37% token 出现次数，训后 WER 从 12% 降到 1.3%
+# 天城文预计占比更高，必须开启
+train_text_rows: true
+text_row_min_count: 1
+text_row_max_base_norm: 0.5   # 低于此范数视为未训练
+text_row_init: subword         # 用已训练子词片段均值初始化（需要 Devanagari patch）
+text_lr_multiplier: 10.0
+
+# --- 优化 -------------------------------------------------------
+batch_size: 8
+grad_accumulation: 4          # 有效 batch 32（单卡 H200）
+epochs: 4
+learning_rate: 1.0e-4
+lang_lr_multiplier: 10.0      # lang_embedding 新行需要更大学习率
+weight_decay: 0.01
+warmup_steps: 500
+min_lr_ratio: 0.05
+grad_clip: 1.0
+amp: bf16
+num_workers: 2
+seed: 1234
+
+# --- 损失与数据增强 ---------------------------------------------
+text_loss_weight: 0.2
+mel_loss_weight: 1.0
+label_smoothing: 0.0
+spk_noise_std: 0.01     # CAMPPlus 向量加抖动，防止对少数说话人过拟合
+emo_dropout: 0.1
+emo_source: target
+prompt_emo_prob: 0.25
+
+# --- 训练调度 ---------------------------------------------------
+log_interval: 20
+val_interval: 500       # 比土耳其语更频繁，早发现过拟合
+save_interval: 500
+keep_checkpoints: 5
+resume: auto
+forgetting_guard: 0.05  # replay 语言 loss 上升超过 0.05 时告警

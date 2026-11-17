@@ -1,0 +1,27 @@
+# data and model weights
+data/
+runs/
+checkpoints/
+adapters/
+outputs/
+*.pth
+*.safetensors
+*.npz
+*.pt
+
+# python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# logs
+*.log
+logs/
+tensorboard_logs/
+
+# editor
+.DS_Store
+.idea/
+.vscode/
